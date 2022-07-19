@@ -1,12 +1,17 @@
 import express from 'express'
-import { validationResult } from 'express-validator'
-import jwt from 'jsonwebtoken'
-import bcrypt from 'bcrypt'
+import multer from 'multer'
+
 import mongoose from 'mongoose'
 
-import { registerValidation } from './validations/auth.js'
+import {
+  registerValidation,
+  loginValidation,
+  postCreateValidation,
+} from './validations.js'
+ 
+import { handleValidationErrors, checkAuth } from './utils/index.js'
 
-import UserModal from './models/User.js'
+import { UserController, PostController } from './controllers/index.js'
 
 mongoose
   .connect(
@@ -16,30 +21,58 @@ mongoose
   .catch((err) => console.log('DB error', err))
 
 const app = express()
+app.use('/uploads', express.static('uploads'))
+
+const storage = multer.diskStorage({
+  destination: (_, __, cb) => {
+    cb(null, 'uploads')
+  },
+  filename: (_, file, cb) => {
+    cb(null, file.originalname)
+  },
+})
+
+const upload = multer({ storage })
 
 app.use(express.json())
 
-app.post('/auth/register', registerValidation, async (req, res) => {
-  const errors = validationResult(req)
-  if (!errors.isEmpty()) {
-    return res.status(400).json(errors.array())
-  }
+app.post(
+  '/auth/login',
+  loginValidation,
+  handleValidationErrors,
+  UserController.login
+)
+app.post(
+  '/auth/register',
+  registerValidation,
+  handleValidationErrors,
+  UserController.register
+)
+app.get('/auth/me', checkAuth, UserController.getMe)
 
-  const password = req.body.password
-  const salt = await bcrypt.genSalt(10)
-  const passwordHash = await bcrypt.hash(password, salt)
-
-  const doc = new UserModal({
-    email: req.body.email,
-    fullName: req.body.fullName,
-    avatarUrl: req.body.avatarUrl,
-    passwordHash,
+app.post('/upload', checkAuth, upload.single('image'), (req, res) => {
+  res.json({
+    url: `/uploads/${req.file.originalname}`,
   })
-
-  const user = await doc.save()
-
-  res.json(user)
 })
+
+app.get('/posts', PostController.getAll)
+app.get('/posts/:id', PostController.getOne)
+app.post(
+  '/posts',
+  checkAuth,
+  postCreateValidation,
+  handleValidationErrors,
+  PostController.create
+)
+app.delete('/posts/:id', checkAuth, PostController.remove)
+app.patch(
+  '/posts/:id',
+  checkAuth,
+  postCreateValidation,
+  handleValidationErrors,
+  PostController.update
+)
 
 app.listen(4444, (err) => {
   if (err) {
