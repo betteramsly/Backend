@@ -1,5 +1,7 @@
 import express from 'express'
 import multer from 'multer'
+import cors from 'cors';
+
 
 import mongoose from 'mongoose'
 
@@ -8,7 +10,7 @@ import {
   loginValidation,
   postCreateValidation,
 } from './validations.js'
- 
+
 import { handleValidationErrors, checkAuth } from './utils/index.js'
 
 import { UserController, PostController } from './controllers/index.js'
@@ -35,6 +37,11 @@ const storage = multer.diskStorage({
 const upload = multer({ storage })
 
 app.use(express.json())
+app.use(cors());
+
+
+app.get('/tags', PostController.getLastTags);
+
 
 app.post(
   '/auth/login',
@@ -74,7 +81,8 @@ app.patch(
   PostController.update
 )
 
-app.listen(4444, (err) => {
+const port = process.env.PORT
+app.listen(port || 4444, (err) => {
   if (err) {
     return console.log(err)
   }
